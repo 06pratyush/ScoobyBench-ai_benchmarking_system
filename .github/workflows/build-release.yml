@@ -1,0 +1,83 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g., 1.0.0)'
+        required: true
+        default: '1.0.0'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: frontend/package.json
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+        cache-dependency-path: backend/requirements.txt
+
+    - name: Install Python dependencies
+      run: |
+        cd backend
+        pip install -r requirements.txt
+        pip install pyinstaller
+
+    - name: Install Node dependencies
+      run: |
+        cd frontend
+        npm install
+
+    - name: Build Python backend
+      run: |
+        cd scripts
+        python build_installer.py --backend-only
+
+    - name: Build Electron frontend
+      run: |
+        cd frontend
+        npm run build
+
+    - name: Package application
+      run: |
+        cd scripts
+        python build_installer.py --package-only
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: scoobybench-windows
+        path: |
+          frontend/dist/*.exe
+          frontend/dist/*.msi
+
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          frontend/dist/*.exe
+          frontend/dist/*.msi
+        draft: true
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,12 @@
+{
+  "telemetry_interval": 5.0,
+  "telemetry_retention_days": 30,
+  "default_repeats": 3,
+  "warmup_tokens": 50,
+  "max_test_duration": 300,
+  "max_model_size_gb": 10.0,
+  "upload_enabled": false,
+  "anonymize": true,
+  "auto_start_monitor": false,
+  "minimize_to_tray": true
+}
