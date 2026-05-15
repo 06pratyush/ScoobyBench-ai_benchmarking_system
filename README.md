@@ -294,7 +294,7 @@ Every benchmark produces a structured JSON report with the following shape:
 ### Step 1 — Clone
 
 ```powershell
-git clone https://github.com/yourusername/scoobybench.git
+git clone https://github.com/06pratyush/ScoobyBench-ai_benchmarking_system
 cd scoobybench
 ```
 
