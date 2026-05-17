@@ -20,17 +20,16 @@ BUILD_DIR = PROJECT_ROOT / "build"
 
 def clean_build():
     """Clean previous build artifacts"""
-    print("🧹 Cleaning build directories...")
+    print("Cleaning build directories...")
     for d in [DIST_DIR, BUILD_DIR, BACKEND_DIR / "dist", FRONTEND_DIR / "dist"]:
         if d.exists():
             shutil.rmtree(d)
-    print("✅ Clean complete")
+    print("Clean complete")
 
 def build_backend():
     """Package Python backend with PyInstaller"""
-    print("🔧 Building Python backend...")
+    print("Building Python backend...")
 
-    # Create PyInstaller spec
     spec_content = f"""
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.building.build_main import Analysis, PYZ, EXE, COLLECT
@@ -96,7 +95,6 @@ exe = EXE(
     with open(spec_path, 'w') as f:
         f.write(spec_content)
 
-    # Run PyInstaller
     result = subprocess.run(
         [sys.executable, "-m", "PyInstaller", str(spec_path), "--clean", "--noconfirm"],
         cwd=str(PROJECT_ROOT),
@@ -105,18 +103,17 @@ exe = EXE(
     )
 
     if result.returncode != 0:
-        print("❌ Backend build failed:")
+        print("ERROR: Backend build failed:")
         print(result.stderr)
         return False
 
-    print("✅ Backend built successfully")
+    print("Backend built successfully")
     return True
 
 def build_frontend():
     """Build Electron frontend"""
-    print("🎨 Building Electron frontend...")
+    print("Building Electron frontend...")
 
-    # Install dependencies
     result = subprocess.run(
         ["npm", "install"],
         cwd=str(FRONTEND_DIR),
@@ -125,11 +122,10 @@ def build_frontend():
     )
 
     if result.returncode != 0:
-        print("❌ npm install failed:")
+        print("ERROR: npm install failed:")
         print(result.stderr)
         return False
 
-    # Build frontend
     result = subprocess.run(
         ["npm", "run", "build"],
         cwd=str(FRONTEND_DIR),
@@ -138,27 +134,24 @@ def build_frontend():
     )
 
     if result.returncode != 0:
-        print("❌ Frontend build failed:")
+        print("ERROR: Frontend build failed:")
         print(result.stderr)
         return False
 
-    print("✅ Frontend built successfully")
+    print("Frontend built successfully")
     return True
 
 def package_app():
     """Package complete application with electron-builder"""
-    print("📦 Packaging application...")
+    print("Packaging application...")
 
-    # Copy backend to frontend extraResources location
     backend_dist = PROJECT_ROOT / "dist" / "backend"
     backend_dist.mkdir(parents=True, exist_ok=True)
 
-    # Copy PyInstaller output
     pyinstaller_dist = PROJECT_ROOT / "dist" / "scoobybench-backend"
     if pyinstaller_dist.exists():
         shutil.copytree(pyinstaller_dist, backend_dist, dirs_exist_ok=True)
 
-    # Build with electron-builder
     result = subprocess.run(
         ["npm", "run", "dist:win"],
         cwd=str(FRONTEND_DIR),
@@ -167,16 +160,16 @@ def package_app():
     )
 
     if result.returncode != 0:
-        print("❌ Packaging failed:")
+        print("ERROR: Packaging failed:")
         print(result.stderr)
         return False
 
-    print("✅ Application packaged successfully")
+    print("Application packaged successfully")
     return True
 
 def main():
     """Main build pipeline"""
-    print("🐕 ScoobyBench Build Pipeline")
+    print("ScoobyBench Build Pipeline")
     print("=" * 40)
 
     clean_build()
@@ -190,10 +183,10 @@ def main():
     if not package_app():
         sys.exit(1)
 
-    print("\n🎉 Build complete!")
-    print(f"📁 Output: {FRONTEND_DIR / 'dist'}")
-    print(f"📁 Installer: {FRONTEND_DIR / 'dist' / 'ScoobyBench Setup.exe'}")
-    print(f"📁 Portable: {FRONTEND_DIR / 'dist' / 'ScoobyBench.exe'}")
+    print("\nBuild complete!")
+    print(f"Output: {FRONTEND_DIR / 'dist'}")
+    print(f"Installer: {FRONTEND_DIR / 'dist' / 'ScoobyBench Setup.exe'}")
+    print(f"Portable: {FRONTEND_DIR / 'dist' / 'ScoobyBench.exe'}")
 
 if __name__ == "__main__":
     main()
