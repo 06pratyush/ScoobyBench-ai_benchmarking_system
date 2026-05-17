@@ -33,7 +33,6 @@ def build_backend():
     spec_content = f"""
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.building.build_main import Analysis, PYZ, EXE, COLLECT
-from PyInstaller.building.api import BUNDLE
 
 a = Analysis(
     ['{BACKEND_DIR / "run.py"}'],
