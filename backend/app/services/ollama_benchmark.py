@@ -177,6 +177,8 @@ class OllamaBenchmark:
         tps_from_ollama = 0.0
         
         try:
+            logger.info(f"[Ollama] Starting generation: model={model_name}, prompt_len={len(prompt)}, max_tokens={max_tokens}")
+            
             resp = requests.post(
                 f"{self.host}/api/generate",
                 json={
@@ -192,27 +194,41 @@ class OllamaBenchmark:
                 timeout=120
             )
             
-            for line in resp.iter_lines():
+            logger.info(f"[Ollama] Response status: {resp.status_code}")
+            
+            for line in resp.iter_lines(decode_unicode=True):
                 if not line:
                     continue
                 
                 try:
                     chunk = json.loads(line)
                     
+                    # Capture first token time
                     if first_token_time is None and chunk.get("response"):
                         first_token_time = time.perf_counter()
+                        logger.debug(f"[Ollama] First token at {(first_token_time - start_time)*1000:.1f}ms")
                     
-                    if chunk.get("done"):
-                        eval_count = chunk.get("eval_count", 0)
-                        eval_duration_ns = chunk.get("eval_duration", 1)
-                        tps_from_ollama = eval_count / (eval_duration_ns / 1e9) if eval_duration_ns else 0
-                        tokens_generated = eval_count
-                        break
-                    
+                    # Count tokens manually from each chunk
                     if chunk.get("response"):
                         tokens_generated += 1
+                    
+                    # Final chunk with stats
+                    if chunk.get("done"):
+                        eval_count = chunk.get("eval_count", 0)
+                        eval_duration_ns = chunk.get("eval_duration", 0)
                         
-                except json.JSONDecodeError:
+                        # Use Ollama's TPS if available, but don't override manual count with 0
+                        if eval_count > 0:
+                            tps_from_ollama = eval_count / (eval_duration_ns / 1e9) if eval_duration_ns > 0 else 0
+                            tokens_generated = eval_count  # Only override if Ollama has real stats
+                            logger.info(f"[Ollama] Done: eval_count={eval_count}, tps={tps_from_ollama:.2f}")
+                        else:
+                            logger.warning(f"[Ollama] Done chunk had eval_count=0, using manual count={tokens_generated}")
+                        
+                        break
+                        
+                except json.JSONDecodeError as e:
+                    logger.debug(f"[Ollama] JSON decode error: {e}")
                     continue
             
             end_time = time.perf_counter()
@@ -221,9 +237,18 @@ class OllamaBenchmark:
             total_duration = end_time - start_time
             generation_duration = end_time - first_token_time if first_token_time else total_duration
             
+            # Ensure we never divide by zero
+            if tokens_generated == 0:
+                logger.warning("[Ollama] No tokens generated! Using fallback of 1 token.")
+                tokens_generated = 1
+            
             tokens_per_sec = tokens_generated / generation_duration if generation_duration > 0 else 0
             
-            latencies = [generation_duration / max(tokens_generated, 1) * 1000] * max(tokens_generated, 1)
+            # Per-token latency
+            per_token_ms = (generation_duration / tokens_generated) * 1000
+            latencies = [per_token_ms] * tokens_generated
+            
+            logger.info(f"[Ollama] Run complete: {tokens_generated} tokens in {generation_duration:.2f}s = {tokens_per_sec:.2f} t/s")
             
             return {
                 "latencies": latencies,
