@@ -190,8 +190,7 @@ def main():
     if not package_app():
         sys.exit(1)
 
-    print("
-🎉 Build complete!")
+    print("\n🎉 Build complete!")
     print(f"📁 Output: {FRONTEND_DIR / 'dist'}")
     print(f"📁 Installer: {FRONTEND_DIR / 'dist' / 'ScoobyBench Setup.exe'}")
     print(f"📁 Portable: {FRONTEND_DIR / 'dist' / 'ScoobyBench.exe'}")
