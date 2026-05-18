@@ -47,7 +47,8 @@ function ReportViewer() {
       if (window.electronAPI) {
         const savePath = await window.electronAPI.saveFile(`scoobybench_report_${runId}.json`);
         if (savePath) {
-          await api.apiGet(`/api/benchmark/export/${runId}?format=json`);
+          const report = await api.apiGet(`/api/benchmark/report/${runId}`);
+          await window.electronAPI.writeTextFile(savePath, JSON.stringify(report, null, 2));
         }
       } else {
         window.open(`http://127.0.0.1:8472/api/benchmark/export/${runId}?format=json`);

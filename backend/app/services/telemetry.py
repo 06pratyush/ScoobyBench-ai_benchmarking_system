@@ -46,7 +46,8 @@ class TelemetryAgent:
 
     def register_callback(self, callback: Callable[[TelemetrySample], None]):
         """Register a callback for real-time updates"""
-        self._callbacks.append(callback)
+        if callback not in self._callbacks:
+            self._callbacks.append(callback)
 
     def set_process_filter(self, process_name: Optional[str]):
         """Filter telemetry to specific process"""

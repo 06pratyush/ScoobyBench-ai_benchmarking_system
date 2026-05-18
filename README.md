@@ -9,7 +9,7 @@
 ╚══════╝ ╚═════╝ ╚═════╝  ╚═════╝ ╚═════╝    ╚═╝   ╚═════╝ ╚══════╝╚═╝  ╚═══╝ ╚═════╝╚═╝  ╚═╝
 ```
 
-**Unmask your machine's true AI performance.**
+**Unmask your machine's true AI performance with ONNX and Ollama benchmarks.**
 
 [![Release](https://img.shields.io/github/v/release/yourusername/scoobybench?style=for-the-badge&color=F4A300&label=Latest+Release)](../../releases/latest)
 [![License](https://img.shields.io/github/license/yourusername/scoobybench?style=for-the-badge&color=4A90D9)](LICENSE)
@@ -55,6 +55,14 @@ It is built with three hard constraints: **no cloud dependency**, **minimal back
 ---
 
 ## Features
+
+Release `v2.0.0` includes:
+
+- ONNX benchmark runs with saved JSON reports
+- Local Ollama model benchmarking for pulled models such as `llama3` and `gemma4:e4b`
+- Hardware-aware model recommendations
+- System telemetry monitoring and report history
+- Electron desktop UI backed by a local FastAPI service
 
 ```
 ┌──────────────────────┬─────────────────────────────────────────────────────────────────┐
@@ -115,7 +123,7 @@ Download `ScoobyBench.exe` from the [**latest release**](../../releases/latest).
 
 ## Usage
 
-### Running a Benchmark
+### Running an ONNX Benchmark
 
 ```
 1. Open ScoobyBench (system tray or desktop shortcut)
@@ -126,6 +134,19 @@ Download `ScoobyBench.exe` from the [**latest release**](../../releases/latest).
 6. Wait for pre-flight checks → warmup → timed inference
 7. Review your scorecard: grade, tokens/sec, latency percentiles, power
 8. Export the JSON report for sharing or archiving
+```
+
+### Running an Ollama Benchmark
+
+```
+1. Start Ollama locally with:  ollama serve
+2. Pull a model such as:  ollama pull gemma4:e4b  or  ollama pull llama3
+3. Navigate to the  [Ollama Benchmark]  tab
+4. Confirm the local Ollama status shows as available
+5. Select a pulled model from the list
+6. Set prompt, max tokens, and repeats
+7. Click  [Start Ollama Benchmark]
+8. Review tokens/sec, latency, RAM use, CPU use, and the baseline comparison
 ```
 
 ### Monitoring System Telemetry
@@ -169,7 +190,7 @@ A benchmark result gives you five key signals:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           ScoobyBench v1.7.1                                │
+│                           ScoobyBench v2.0.0                                │
 │                                                                             │
 │  ┌──────────────────────────────────────────────────────────────────────┐  │
 │  │                     Electron Frontend (React)                        │  │
@@ -220,6 +241,9 @@ The backend exposes a local REST API on `http://127.0.0.1:8472`. This is used in
 | `/api/telemetry/samples` | `GET` | Retrieve telemetry history |
 | `/api/models` | `GET` | List available models |
 | `/api/models/recommendations` | `GET` | Hardware-matched model recommendations |
+| `/api/ollama/status` | `GET` | Check whether local Ollama is reachable |
+| `/api/ollama/models` | `GET` | List locally installed Ollama models |
+| `/api/ollama/benchmark` | `POST` | Benchmark a locally running Ollama model |
 | `/ws/telemetry` | `WebSocket` | Real-time telemetry stream |
 
 **Example — run a benchmark via curl:**
@@ -343,10 +367,10 @@ python build_installer.py
 ScoobyBench uses [Semantic Versioning](https://semver.org) (`MAJOR.MINOR.PATCH`).
 
 ```
-v1.7.1  ← Current stable release (first public)
+v2.0.0  ← Current stable release
 │
 ├── v1.x   CLI runner · ONNX inference · Telemetry · JSON reports · GitHub Releases
-├── v2.x   GUI scorecard · Multi-model library · Continuous monitoring · Baseline DB
+├── v2.x   GUI scorecard · ONNX + Ollama benchmarking · Reports · Model recommendations
 ├── v3.x   Auto-update · Scheduled benchmarks · Team sharing · Plugin system
 └── v4.x   Enterprise: fleet dashboards · SSO · Centralized baseline server
 ```
@@ -421,6 +445,6 @@ ScoobyBench is released under the [MIT License](LICENSE). You are free to use, m
 
 **Built to tell the truth about your hardware.**
 
-[⬇ Download v1.7.1](../../releases/latest) · [🐛 Report a Bug](../../issues) · [💬 Discussions](../../discussions)
+[⬇ Download v2.0.0](../../releases/latest) · [🐛 Report a Bug](../../issues) · [💬 Discussions](../../discussions)
 
 </div>

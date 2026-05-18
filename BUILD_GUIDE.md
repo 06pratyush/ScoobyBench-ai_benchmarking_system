@@ -253,8 +253,8 @@ xcopy frontend\dist\ScoobyBench*.exe \\server\share\ /Y
 #### Method 1: Automated (CI/CD)
 1. Push tag:
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v2.0.0
+git push origin v2.0.0
 ```
 2. GitHub Actions automatically builds and creates draft release
 3. Review release notes
@@ -380,7 +380,7 @@ npm install --build-from-source
 
 Follow Semantic Versioning:
 - `MAJOR.MINOR.PATCH`
-- Example: `1.0.0` -> `1.1.0` (new feature) -> `1.1.1` (bugfix)
+- Example: `2.0.0` -> `2.1.0` (new feature) -> `2.1.1` (bugfix)
 
 Update version in:
 - `frontend/package.json`

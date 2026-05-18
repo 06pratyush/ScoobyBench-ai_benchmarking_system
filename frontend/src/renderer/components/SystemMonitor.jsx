@@ -10,6 +10,7 @@ function SystemMonitor() {
 
   useEffect(() => {
     checkStatus();
+    fetchStats(1);
     const interval = setInterval(checkStatus, 5000);
     return () => {
       clearInterval(interval);
@@ -91,10 +92,10 @@ function SystemMonitor() {
   };
 
   // Simple sparkline SVG
-  const Sparkline = ({ data, color, height = 60 }) => {
+  const Sparkline = ({ data, metric, color, height = 60 }) => {
     if (!data || data.length < 2) return <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>No data</div>;
 
-    const values = data.map(d => d.cpu_percent || d.memory_percent || 0);
+    const values = data.map(d => d?.[metric] ?? 0);
     const min = Math.min(...values);
     const max = Math.max(...values);
     const range = max - min || 1;
@@ -147,7 +148,7 @@ function SystemMonitor() {
           </div>
           <div className="metric-label">CPU Usage</div>
           <div style={{ marginTop: '8px' }}>
-            <Sparkline data={samples} color="#6366f1" />
+            <Sparkline data={samples} metric="cpu_percent" color="#6366f1" />
           </div>
         </div>
         <div className="metric-card">
@@ -156,7 +157,7 @@ function SystemMonitor() {
           </div>
           <div className="metric-label">Memory Usage</div>
           <div style={{ marginTop: '8px' }}>
-            <Sparkline data={samples} color="#8b5cf6" />
+            <Sparkline data={samples} metric="memory_percent" color="#8b5cf6" />
           </div>
         </div>
         <div className="metric-card">
@@ -165,7 +166,7 @@ function SystemMonitor() {
           </div>
           <div className="metric-label">GPU Usage</div>
           <div style={{ marginTop: '8px' }}>
-            <Sparkline data={samples} color="#3b82f6" />
+            <Sparkline data={samples} metric="gpu_percent" color="#3b82f6" />
           </div>
         </div>
         <div className="metric-card">
@@ -174,7 +175,7 @@ function SystemMonitor() {
           </div>
           <div className="metric-label">Temperature</div>
           <div style={{ marginTop: '8px' }}>
-            <Sparkline data={samples} color="#f59e0b" />
+            <Sparkline data={samples} metric="temperature_c" color="#f59e0b" />
           </div>
         </div>
       </div>

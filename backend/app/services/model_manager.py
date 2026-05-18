@@ -115,6 +115,7 @@ class ModelManager:
                 "min_ram_gb": m.min_ram_gb,
                 "min_vram_gb": m.min_vram_gb,
                 "recommended_precision": m.recommended_precision,
+                "huggingface_id": m.huggingface_id,
                 "description": m.description,
                 "tags": m.tags,
                 "installed": self._is_installed(m.id)

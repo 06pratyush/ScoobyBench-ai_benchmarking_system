@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // File dialogs
   openFile: () => ipcRenderer.invoke('dialog:openFile'),
   saveFile: (defaultName) => ipcRenderer.invoke('dialog:saveFile', defaultName),
+  writeTextFile: (filePath, content) => ipcRenderer.invoke('fs:writeTextFile', filePath, content),
 
   // System
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),

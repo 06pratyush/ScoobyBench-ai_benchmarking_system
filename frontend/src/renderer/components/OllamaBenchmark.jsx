@@ -63,8 +63,8 @@ function OllamaBenchmark() {
         repeats: parseInt(repeats)
       });
 
-      if (response.error) {
-        throw new Error(response.error);
+      if (response.error || response.detail) {
+        throw new Error(response.error || response.detail);
       }
 
       setResult(response);

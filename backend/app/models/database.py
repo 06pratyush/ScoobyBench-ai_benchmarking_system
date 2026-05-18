@@ -66,7 +66,8 @@ class Database:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_benchmark_time ON benchmark_runs(timestamp)")
 
     def save_benchmark(self, report: BenchmarkReport) -> str:
-        run_id = str(uuid.uuid4())
+        report_payload = report.model_dump(mode="json")
+        run_id = report.run_id or str(uuid.uuid4())
         with self._connect() as conn:
             conn.execute("""
                 INSERT INTO benchmark_runs 
@@ -76,14 +77,14 @@ class Database:
             """, (
                 run_id,
                 report.timestamp.isoformat(),
-                json.dumps(report.device.dict()),
-                json.dumps(report.model.dict()),
-                json.dumps(report.metrics.dict()),
-                json.dumps(report.normalization.dict()),
-                json.dumps(report.comparator.dict()),
-                json.dumps(report.environment_snapshot),
+                json.dumps(report_payload["device"]),
+                json.dumps(report_payload["model"]),
+                json.dumps(report_payload["metrics"]),
+                json.dumps(report_payload["normalization"]),
+                json.dumps(report_payload["comparator"]),
+                json.dumps(report_payload["environment_snapshot"]),
                 report.notes,
-                json.dumps(report.dict())
+                json.dumps(report_payload)
             ))
         return run_id
 

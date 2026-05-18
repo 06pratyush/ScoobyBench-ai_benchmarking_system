@@ -21,7 +21,7 @@ const Icons = {
 };
 
 function Sidebar() {
-  const [version, setVersion] = useState('1.0.0');
+  const [version, setVersion] = useState('2.0.0');
 
   useEffect(() => {
     if (window.electronAPI) {

@@ -50,6 +50,7 @@ class OllamaBenchmark:
 
     @property
     def is_available(self) -> bool:
+        self._available = self._check_connection()
         return self._available
 
     def _check_connection(self) -> bool:
@@ -161,7 +162,7 @@ class OllamaBenchmark:
                 "name": model_name,
                 "onnx_path": None,
                 "params_million": params_million,
-                "precision": Precision.fp16,
+                "precision": Precision.FP16,
                 "batch_size": 1,
                 "prompt_tokens": len(prompt.split()),
                 "target_tokens": max_tokens,

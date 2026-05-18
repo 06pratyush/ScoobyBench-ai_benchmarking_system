@@ -135,7 +135,7 @@ class BenchmarkEngine:
             raise FileNotFoundError(f"Model not found: {request.model.onnx_path}")
 
         # Check ONNX Runtime
-        if not self._onnx_runtime_available:
+        if request.model.onnx_path and not self._onnx_runtime_available:
             raise RuntimeError("ONNX Runtime not available")
 
     def _get_device_info(self) -> DeviceInfo:
@@ -167,12 +167,14 @@ class BenchmarkEngine:
     def _capture_environment(self) -> Dict[str, Any]:
         """Capture system environment snapshot"""
         import psutil
+        disk_root = Path.cwd().anchor or str(Path.cwd().drive) or "/"
+        cpu_freq = psutil.cpu_freq()
 
         return {
-            "cpu_freq_mhz": psutil.cpu_freq().current if psutil.cpu_freq() else None,
+            "cpu_freq_mhz": cpu_freq.current if cpu_freq else None,
             "cpu_percent": psutil.cpu_percent(interval=0.1),
             "memory_percent": psutil.virtual_memory().percent,
-            "disk_free_gb": psutil.disk_usage('/').free / (1024**3),
+            "disk_free_gb": psutil.disk_usage(disk_root).free / (1024**3),
             "process_count": len(psutil.pids()),
             "boot_time": psutil.boot_time(),
             "timestamp": datetime.utcnow().isoformat()
@@ -283,56 +285,55 @@ class BenchmarkEngine:
         import psutil
 
         process = psutil.Process()
-        mem_before = process.memory_info().rss / (1024**2)
+        peak_ram_mb = process.memory_info().rss / (1024**2)
 
-        # Simulate matrix operations representative of inference
         latencies = []
         tokens_generated = 0
 
-        # Simulate based on model size
-        hidden_dim = 4096  # Typical for 7B model
-        vocab_size = 32000
+        hidden_dim = max(64, min(1024, int((model.params_million ** 0.5) * 6)))
+        seq = max(8, min(model.prompt_tokens, 256))
+        ff_dim = hidden_dim * 2
+        batch = max(1, model.batch_size)
 
-        for i in range(model.target_tokens):
+        q = np.random.randn(batch, seq, hidden_dim).astype(np.float32)
+        k = np.random.randn(batch, seq, hidden_dim).astype(np.float32)
+        v = np.random.randn(batch, seq, hidden_dim).astype(np.float32)
+        ff1 = np.random.randn(hidden_dim, ff_dim).astype(np.float32)
+        ff2 = np.random.randn(ff_dim, hidden_dim).astype(np.float32)
+
+        for _ in range(model.target_tokens):
             start = time.perf_counter()
 
-            # Simulate attention computation
-            batch = model.batch_size
-            seq = model.prompt_tokens
-
-            # Q, K, V projections
-            q = np.random.randn(batch, seq, hidden_dim).astype(np.float32)
-            k = np.random.randn(batch, seq, hidden_dim).astype(np.float32)
-            v = np.random.randn(batch, seq, hidden_dim).astype(np.float32)
-
-            # Attention scores
             scores = np.matmul(q, k.transpose(0, 2, 1)) / np.sqrt(hidden_dim)
             attn = softmax(scores)
             output = np.matmul(attn, v)
-
-            # Feed-forward
-            ff = np.random.randn(batch, seq, hidden_dim * 4).astype(np.float32)
-            result = np.matmul(output, ff.transpose(0, 2, 1))
-
-            # Projection to vocab
-            logits = np.random.randn(batch, vocab_size).astype(np.float32)
+            hidden = np.tanh(np.matmul(output, ff1))
+            result = np.matmul(hidden, ff2)
+            q = 0.8 * q + 0.2 * result.astype(np.float32)
 
             end = time.perf_counter()
             latencies.append((end - start) * 1000)
             tokens_generated += 1
+            peak_ram_mb = max(peak_ram_mb, process.memory_info().rss / (1024**2))
 
             if self._abort_flag:
                 break
 
-        mem_after = process.memory_info().rss / (1024**2)
         total_time = sum(latencies) / 1000
+        avg_power = None
+        recent_sample = telemetry_agent.get_status().last_sample
+        if recent_sample:
+            avg_power = recent_sample.power_w
+
+        model_size_mb = max(model.params_million * 2 / 1024, 1)
+        memory_efficiency = model_size_mb / max(peak_ram_mb, 1)
 
         return {
             "latencies": latencies,
             "tokens_per_sec": tokens_generated / total_time if total_time > 0 else 0,
-            "peak_ram_mb": mem_after,
+            "peak_ram_mb": peak_ram_mb,
             "peak_vram_mb": None,
-            "avg_power_w": None,
+            "avg_power_w": avg_power,
             "cpu_util_pct": psutil.cpu_percent(interval=0.1),
             "gpu_util_pct": None
         }
@@ -351,6 +352,12 @@ class BenchmarkEngine:
 
         tokens_per_sec_values = [r["tokens_per_sec"] for r in runs]
 
+        avg_power = statistics.mean([r["avg_power_w"] for r in runs if r["avg_power_w"] is not None]) if any(r["avg_power_w"] is not None for r in runs) else None
+        peak_ram = max(r["peak_ram_mb"] for r in runs)
+        tokens_per_sec = statistics.median(tokens_per_sec_values)
+        peak_vram = max((r["peak_vram_mb"] for r in runs if r["peak_vram_mb"] is not None), default=None)
+        tokens_per_watt = (tokens_per_sec / avg_power) if avg_power and avg_power > 0 else None
+
         return BenchmarkMetrics(
             latency=LatencyMetrics(
                 p50_ms=sorted_lat[n // 2] if n > 0 else 0,
@@ -359,16 +366,16 @@ class BenchmarkEngine:
                 min_ms=min(sorted_lat),
                 max_ms=max(sorted_lat)
             ),
-            tokens_per_sec=statistics.median(tokens_per_sec_values),
-            peak_ram_mb=max(r["peak_ram_mb"] for r in runs),
-            peak_vram_mb=max((r["peak_vram_mb"] for r in runs if r["peak_vram_mb"]), default=None),
-            avg_power_w=statistics.mean([r["avg_power_w"] for r in runs if r["avg_power_w"]]) if any(r["avg_power_w"] for r in runs) else None,
+            tokens_per_sec=tokens_per_sec,
+            peak_ram_mb=peak_ram,
+            peak_vram_mb=peak_vram,
+            avg_power_w=avg_power,
             cpu_util_pct=statistics.mean([r["cpu_util_pct"] for r in runs]),
-            gpu_util_pct=statistics.mean([r["gpu_util_pct"] for r in runs if r["gpu_util_pct"]]) if any(r["gpu_util_pct"] for r in runs) else None,
+            gpu_util_pct=statistics.mean([r["gpu_util_pct"] for r in runs if r["gpu_util_pct"] is not None]) if any(r["gpu_util_pct"] is not None for r in runs) else None,
             npu_util_pct=None,
             temperature_c=None,
-            memory_efficiency=0.0,  # Will be calculated
-            tokens_per_watt=None
+            memory_efficiency=max(0.0, (peak_ram / 1024) / max(tokens_per_sec, 0.001)),
+            tokens_per_watt=tokens_per_watt
         )
 
     def _normalize_metrics(self, metrics: BenchmarkMetrics, model: ModelConfig) -> NormalizationData:

@@ -4,7 +4,7 @@ import logging
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Query
 from fastapi.responses import JSONResponse, FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from app.models.schemas import (
     BenchmarkRequest, BenchmarkReport, TelemetrySample,
@@ -15,7 +15,7 @@ from app.services.benchmark import benchmark_engine
 from app.services.telemetry import telemetry_agent
 from app.services.model_manager import model_manager
 from app.utils.hardware_detect import detector
-from app.config import config
+from app.config import config, APP_VERSION
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -177,7 +177,7 @@ async def health_check():
     """Health check endpoint"""
     return {
         "status": "healthy",
-        "version": config.APP_VERSION,
+        "version": APP_VERSION,
         "telemetry_running": telemetry_agent.is_running
     }
 
@@ -218,6 +218,7 @@ async def ollama_models():
     }
 
 class OllamaBenchmarkRequest(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
     model_name: str
     prompt: str = "Explain quantum computing in simple terms."
     max_tokens: int = 256

@@ -69,6 +69,7 @@ function isPortInUse(port) {
 
 function findBackendPath() {
   const candidates = [
+    path.join(process.resourcesPath, 'backend', 'run.py'),
     path.join(__dirname, '..', '..', '..', 'backend', 'run.py'),
     path.join(__dirname, '..', '..', 'backend', 'run.py'),
     path.join(process.cwd(), '..', 'backend', 'run.py'),
@@ -85,6 +86,28 @@ function findBackendPath() {
   return null;
 }
 
+function findPythonExecutable(scriptPath) {
+  const repoRoot = path.resolve(path.dirname(scriptPath), '..');
+  const backendRoot = path.dirname(scriptPath);
+  const candidates = [
+    path.join(backendRoot, 'venv311', 'Scripts', 'python.exe'),
+    path.join(backendRoot, 'venv', 'Scripts', 'python.exe'),
+    path.join(repoRoot, '.venv', 'Scripts', 'python.exe'),
+    path.join(repoRoot, 'venv311', 'Scripts', 'python.exe'),
+    path.join(repoRoot, 'venv', 'Scripts', 'python.exe'),
+    'python'
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate === 'python' || fs.existsSync(candidate)) {
+      console.log('[Main] Using Python runtime:', candidate);
+      return candidate;
+    }
+  }
+
+  return 'python';
+}
+
 async function startBackend() {
   const alreadyRunning = await isPortInUse(API_PORT);
   if (alreadyRunning) {
@@ -98,8 +121,9 @@ async function startBackend() {
     return;
   }
 
+  const pythonExecutable = findPythonExecutable(scriptPath);
   console.log('[Main] Starting backend:', scriptPath);
-  backendProcess = spawn('python', [scriptPath], {
+  backendProcess = spawn(pythonExecutable, [scriptPath], {
     cwd: path.dirname(scriptPath),
     stdio: 'pipe',
     env: { ...process.env, PYTHONPATH: path.dirname(scriptPath) }
@@ -180,6 +204,11 @@ ipcMain.handle('dialog:saveFile', async (event, defaultName) => {
     filters: [{ name: 'JSON Report', extensions: ['json'] }, { name: 'All Files', extensions: ['*'] }]
   });
   return result.filePath || null;
+});
+
+ipcMain.handle('fs:writeTextFile', async (event, filePath, content) => {
+  await fs.promises.writeFile(filePath, content, 'utf8');
+  return true;
 });
 
 ipcMain.handle('shell:openExternal', async (event, url) => {

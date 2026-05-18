@@ -6,7 +6,7 @@ from dataclasses import dataclass, asdict
 from typing import Optional, Dict, Any
 
 APP_NAME = "ScoobyBench"
-APP_VERSION = "1.0.0"
+APP_VERSION = "2.0.0"
 APP_DIR = Path(os.environ.get("SCOOBYBENCH_HOME", Path.home() / ".scoobybench"))
 APP_DIR.mkdir(exist_ok=True)
 

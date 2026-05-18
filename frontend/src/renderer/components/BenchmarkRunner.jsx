@@ -77,8 +77,8 @@ function BenchmarkRunner() {
 
       clearInterval(progressInterval);
 
-      if (response.error) {
-        throw new Error(response.error);
+      if (response.error || response.detail) {
+        throw new Error(response.error || response.detail);
       }
 
       setResult(response);
@@ -111,7 +111,8 @@ function BenchmarkRunner() {
       if (window.electronAPI) {
         const savePath = await window.electronAPI.saveFile(`scoobybench_report_${result.run_id}.json`);
         if (savePath) {
-          const report = await api.apiGet(`/api/benchmark/export/${result.run_id}?format=json`);
+          const report = await api.apiGet(`/api/benchmark/report/${result.run_id}`);
+          await window.electronAPI.writeTextFile(savePath, JSON.stringify(report, null, 2));
         }
       } else {
         window.open(`http://127.0.0.1:8472/api/benchmark/export/${result.run_id}?format=json`);

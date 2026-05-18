@@ -1,6 +1,6 @@
 {
   "name": "scoobybench-frontend",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "ScoobyBench Desktop Application Frontend",
   "main": "src/main/main.js",
   "scripts": {
@@ -53,7 +53,7 @@
     ],
     "extraResources": [
       {
-        "from": "../../backend",
+        "from": "../backend",
         "to": "backend",
         "filter": [
           "**/*",
@@ -77,7 +77,7 @@
           ]
         }
       ],
-      "icon": "assets/icon.ico",
+      "icon": "assets/289858_hand-holding-pencil-icon.ico",
       "publisherName": "ScoobyBench"
     },
     "nsis": {
