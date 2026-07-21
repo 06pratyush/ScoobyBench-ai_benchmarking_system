@@ -1,0 +1,16 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+extend-exclude = ["venv", "venv311", "build", "dist"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B"]
+ignore = [
+    "E501",  # line length is advisory in this codebase
+    "B008",  # FastAPI Depends/Query in defaults is idiomatic
+    "E722",  # bare except used intentionally around optional hardware probes
+]

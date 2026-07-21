@@ -2,7 +2,7 @@
 import sqlite3
 import json
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from contextlib import contextmanager
@@ -17,8 +17,12 @@ class Database:
 
     @contextmanager
     def _connect(self):
-        conn = sqlite3.connect(str(self.db_path))
+        conn = sqlite3.connect(str(self.db_path), timeout=10.0)
         conn.row_factory = sqlite3.Row
+        # WAL lets the telemetry writer thread and API readers work
+        # concurrently without "database is locked" errors.
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=5000")
         try:
             yield conn
             conn.commit()
@@ -70,8 +74,8 @@ class Database:
         run_id = report.run_id or str(uuid.uuid4())
         with self._connect() as conn:
             conn.execute("""
-                INSERT INTO benchmark_runs 
-                (run_id, timestamp, device_info, model_config, metrics, 
+                INSERT INTO benchmark_runs
+                (run_id, timestamp, device_info, model_config, metrics,
                  normalization, comparator, environment, notes, report_json)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
@@ -91,7 +95,7 @@ class Database:
     def get_benchmark(self, run_id: str) -> Optional[Dict[str, Any]]:
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT report_json FROM benchmark_runs WHERE run_id = ?", 
+                "SELECT report_json FROM benchmark_runs WHERE run_id = ?",
                 (run_id,)
             ).fetchone()
             return json.loads(row["report_json"]) if row else None
@@ -111,7 +115,7 @@ class Database:
     def save_telemetry(self, sample: TelemetrySample):
         with self._connect() as conn:
             conn.execute("""
-                INSERT INTO telemetry 
+                INSERT INTO telemetry
                 (timestamp, cpu_percent, memory_percent, memory_used_mb, gpu_percent,
                  gpu_vram_used_mb, npu_percent, temperature_c, power_w, process_name, process_id)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -130,7 +134,7 @@ class Database:
             ))
 
     def get_telemetry(self, hours: int = 24) -> List[Dict[str, Any]]:
-        cutoff = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
         with self._connect() as conn:
             rows = conn.execute(
                 "SELECT * FROM telemetry WHERE timestamp > ? ORDER BY timestamp",
@@ -138,11 +142,11 @@ class Database:
             ).fetchall()
             return [dict(r) for r in rows]
 
-    def cleanup_old_telemetry(self, days: int = 30):
-        cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat()
+    def cleanup_old_telemetry(self, days: int = 30) -> int:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
         with self._connect() as conn:
-            conn.execute("DELETE FROM telemetry WHERE timestamp < ?", (cutoff,))
-            deleted = conn.total_changes
+            cursor = conn.execute("DELETE FROM telemetry WHERE timestamp < ?", (cutoff,))
+            deleted = cursor.rowcount
         return deleted
 
     def get_stats(self) -> Dict[str, Any]:

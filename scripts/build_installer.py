@@ -6,7 +6,6 @@ Builds the complete application for Windows distribution:
 2. Build Electron frontend
 3. Package everything into single installer
 """
-import os
 import sys
 import shutil
 import subprocess

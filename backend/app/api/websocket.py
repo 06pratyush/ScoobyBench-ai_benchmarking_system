@@ -14,10 +14,13 @@ class TelemetryWebSocket:
 
     def __init__(self):
         self.active_connections: Set[WebSocket] = set()
-        self._broadcast_task = None
+        self._loop: asyncio.AbstractEventLoop = None
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
+        # Telemetry samples arrive on the agent's worker thread; remember the
+        # server loop so the callback can hand messages back to it safely.
+        self._loop = asyncio.get_running_loop()
         self.active_connections.add(websocket)
         logger.info(f"WebSocket client connected. Total: {len(self.active_connections)}")
 
@@ -29,11 +32,6 @@ class TelemetryWebSocket:
         self.active_connections.discard(websocket)
         logger.info(f"WebSocket client disconnected. Total: {len(self.active_connections)}")
 
-        # Stop broadcast if no clients
-        if not self.active_connections and self._broadcast_task:
-            self._broadcast_task.cancel()
-            self._broadcast_task = None
-
     def _start_broadcast(self):
         """Start broadcasting telemetry to all clients"""
         if not telemetry_agent.is_running:
@@ -43,8 +41,8 @@ class TelemetryWebSocket:
         telemetry_agent.register_callback(self._on_telemetry_sample)
 
     def _on_telemetry_sample(self, sample: TelemetrySample):
-        """Handle new telemetry sample"""
-        if not self.active_connections:
+        """Handle new telemetry sample (called from the telemetry thread)"""
+        if not self.active_connections or self._loop is None or self._loop.is_closed():
             return
 
         message = {
@@ -59,8 +57,7 @@ class TelemetryWebSocket:
             "power_w": sample.power_w
         }
 
-        # Broadcast asynchronously
-        asyncio.create_task(self._broadcast(message))
+        asyncio.run_coroutine_threadsafe(self._broadcast(message), self._loop)
 
     async def _broadcast(self, message: dict):
         """Broadcast message to all connected clients"""
@@ -91,7 +88,7 @@ class TelemetryWebSocket:
                         status = telemetry_agent.get_status()
                         await websocket.send_json({
                             "type": "status",
-                            "data": status.dict()
+                            "data": status.model_dump(mode="json")
                         })
                 except json.JSONDecodeError:
                     pass

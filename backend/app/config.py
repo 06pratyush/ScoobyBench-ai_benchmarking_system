@@ -59,7 +59,7 @@ class AppConfig:
                 },
                 "phi-2": {
                     "name": "Phi-2",
-                    "source": "huggingface", 
+                    "source": "huggingface",
                     "params_million": 2700,
                     "recommended_precision": "fp16",
                     "min_vram_gb": 4,

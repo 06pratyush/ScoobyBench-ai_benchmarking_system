@@ -3,8 +3,9 @@ import json
 import logging
 import statistics
 import time
+import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import psutil
@@ -155,8 +156,8 @@ class OllamaBenchmark:
         comparator = self._compare_to_baseline(aggregated, device, params_million)
 
         report = BenchmarkReport(
-            run_id=f"ollama-{int(time.time())}",
-            timestamp=datetime.utcnow(),
+            run_id=f"ollama-{int(time.time())}-{uuid.uuid4().hex[:8]}",
+            timestamp=datetime.now(timezone.utc),
             device=device,
             model={
                 "name": model_name,

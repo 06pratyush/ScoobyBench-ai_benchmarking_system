@@ -4,14 +4,13 @@ import uuid
 import json
 import statistics
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Any
 import numpy as np
 
-from app.config import config
 from app.models.schemas import (
-    BenchmarkRequest, BenchmarkReport, BenchmarkMetrics, 
+    BenchmarkRequest, BenchmarkReport, BenchmarkMetrics,
     LatencyMetrics, NormalizationData, ComparatorResult,
     ModelConfig, DeviceInfo, Precision
 )
@@ -22,6 +21,14 @@ from app.services.telemetry import telemetry_agent
 def softmax(x):
     e_x = np.exp(x - np.max(x, axis=-1, keepdims=True))
     return e_x / np.sum(e_x, axis=-1, keepdims=True)
+
+
+def percentile(sorted_values: List[float], pct: float) -> float:
+    """Nearest-rank percentile over an already-sorted list."""
+    if not sorted_values:
+        return 0.0
+    idx = min(len(sorted_values) - 1, max(0, round(pct / 100 * len(sorted_values)) - 1))
+    return sorted_values[idx]
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +78,7 @@ class BenchmarkEngine:
             progress_callback("env_capture", 30)
 
         # 4. Warmup
-        warmup_metrics = self._run_warmup(request.model)
+        self._run_warmup(request.model)
         if progress_callback:
             progress_callback("warmup", 40)
 
@@ -88,7 +95,7 @@ class BenchmarkEngine:
                 progress_callback(f"run_{i+1}", 40 + (50 * (i+1) // request.model.repeats))
 
         # 6. Aggregate metrics
-        aggregated = self._aggregate_metrics(all_metrics)
+        aggregated = self._aggregate_metrics(all_metrics, request.model)
         if progress_callback:
             progress_callback("aggregate", 95)
 
@@ -101,7 +108,7 @@ class BenchmarkEngine:
         # 9. Generate report
         report = BenchmarkReport(
             run_id=run_id,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             device=device,
             model=request.model,
             metrics=aggregated,
@@ -177,7 +184,7 @@ class BenchmarkEngine:
             "disk_free_gb": psutil.disk_usage(disk_root).free / (1024**3),
             "process_count": len(psutil.pids()),
             "boot_time": psutil.boot_time(),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
 
     def _run_warmup(self, model: ModelConfig) -> Dict[str, float]:
@@ -242,7 +249,6 @@ class BenchmarkEngine:
 
             # Monitor resources
             process = psutil.Process()
-            mem_before = process.memory_info().rss / (1024**2)
 
             # Run inference with timing
             latencies = []
@@ -325,9 +331,6 @@ class BenchmarkEngine:
         if recent_sample:
             avg_power = recent_sample.power_w
 
-        model_size_mb = max(model.params_million * 2 / 1024, 1)
-        memory_efficiency = model_size_mb / max(peak_ram_mb, 1)
-
         return {
             "latencies": latencies,
             "tokens_per_sec": tokens_generated / total_time if total_time > 0 else 0,
@@ -338,7 +341,7 @@ class BenchmarkEngine:
             "gpu_util_pct": None
         }
 
-    def _aggregate_metrics(self, runs: List[Dict[str, Any]]) -> BenchmarkMetrics:
+    def _aggregate_metrics(self, runs: List[Dict[str, Any]], model: Optional[ModelConfig] = None) -> BenchmarkMetrics:
         """Aggregate metrics from multiple runs"""
         all_latencies = []
         for r in runs:
@@ -348,7 +351,6 @@ class BenchmarkEngine:
             all_latencies = [0]
 
         sorted_lat = sorted(all_latencies)
-        n = len(sorted_lat)
 
         tokens_per_sec_values = [r["tokens_per_sec"] for r in runs]
 
@@ -358,11 +360,16 @@ class BenchmarkEngine:
         peak_vram = max((r["peak_vram_mb"] for r in runs if r["peak_vram_mb"] is not None), default=None)
         tokens_per_watt = (tokens_per_sec / avg_power) if avg_power and avg_power > 0 else None
 
+        # memory_efficiency: approximate model footprint / peak RAM (schema
+        # contract). ~2 MB per million params at fp16.
+        model_size_mb = model.params_million * 2 if model else 0
+        memory_efficiency = model_size_mb / peak_ram if peak_ram > 0 else 0.0
+
         return BenchmarkMetrics(
             latency=LatencyMetrics(
-                p50_ms=sorted_lat[n // 2] if n > 0 else 0,
-                p90_ms=sorted_lat[int(n * 0.9)] if n > 1 else sorted_lat[0],
-                p99_ms=sorted_lat[int(n * 0.99)] if n > 1 else sorted_lat[0],
+                p50_ms=percentile(sorted_lat, 50),
+                p90_ms=percentile(sorted_lat, 90),
+                p99_ms=percentile(sorted_lat, 99),
                 min_ms=min(sorted_lat),
                 max_ms=max(sorted_lat)
             ),
@@ -374,7 +381,7 @@ class BenchmarkEngine:
             gpu_util_pct=statistics.mean([r["gpu_util_pct"] for r in runs if r["gpu_util_pct"] is not None]) if any(r["gpu_util_pct"] is not None for r in runs) else None,
             npu_util_pct=None,
             temperature_c=None,
-            memory_efficiency=max(0.0, (peak_ram / 1024) / max(tokens_per_sec, 0.001)),
+            memory_efficiency=round(memory_efficiency, 4),
             tokens_per_watt=tokens_per_watt
         )
 

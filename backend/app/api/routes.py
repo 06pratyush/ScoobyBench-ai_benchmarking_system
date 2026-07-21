@@ -1,20 +1,23 @@
 """FastAPI routes for ScoobyBench"""
 import json
 import logging
-from typing import Optional, List
+from typing import Optional
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Query
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from pydantic import BaseModel, ConfigDict
 
 from app.models.schemas import (
-    BenchmarkRequest, BenchmarkReport, TelemetrySample,
-    SystemStatus, ModelRecommendation, ModelConfig
+    BenchmarkRequest, BenchmarkReport
 )
 from app.models.database import db
 from app.services.benchmark import benchmark_engine
+from app.services.comparator import run_comparator
+from app.services import report_generator
+from app.services.ollama_benchmark import ollama_benchmark
 from app.services.telemetry import telemetry_agent
 from app.services.model_manager import model_manager
 from app.utils.hardware_detect import detector
+from app.utils import system_info, validators
 from app.config import config, APP_VERSION
 
 logger = logging.getLogger(__name__)
@@ -31,8 +34,16 @@ async def get_system_profile():
 async def get_system_status():
     """Get current system status"""
     return {
-        "telemetry": telemetry_agent.get_status().dict(),
+        "telemetry": telemetry_agent.get_status().model_dump(mode="json"),
         "database": db.get_stats()
+    }
+
+@router.get("/api/system/summary")
+async def get_system_summary():
+    """Fast runtime snapshot (safe to poll frequently — no WMI queries)"""
+    return {
+        "system": system_info.get_runtime_summary(),
+        "backend_process": system_info.get_process_summary()
     }
 
 # ============ Benchmarking ============
@@ -44,8 +55,10 @@ class BenchmarkProgress(BaseModel):
 
 _progress_callbacks = {}
 
+# NOTE: deliberately a sync `def` — FastAPI runs it in the threadpool so a
+# long benchmark doesn't freeze the event loop (telemetry WS shares it).
 @router.post("/api/benchmark/run", response_model=BenchmarkReport)
-async def run_benchmark(request: BenchmarkRequest, background_tasks: BackgroundTasks):
+def run_benchmark(request: BenchmarkRequest, background_tasks: BackgroundTasks):
     """Run a benchmark test"""
     try:
         def progress_callback(stage, percent):
@@ -55,7 +68,7 @@ async def run_benchmark(request: BenchmarkRequest, background_tasks: BackgroundT
         return report
     except Exception as e:
         logger.error(f"Benchmark failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 @router.get("/api/benchmark/progress/{model_name}")
 async def get_benchmark_progress(model_name: str):
@@ -83,18 +96,73 @@ async def get_report(run_id: str):
 
 @router.get("/api/benchmark/export/{run_id}")
 async def export_report(run_id: str, format: str = "json"):
-    """Export report to file"""
+    """Export report as JSON, HTML, or CSV"""
+    if not validators.is_valid_run_id(run_id):
+        raise HTTPException(status_code=400, detail="Invalid run_id")
+    try:
+        format = validators.validate_export_format(format)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
     report = db.get_benchmark(run_id)
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
 
-    if format == "json":
-        export_path = config.reports_dir / f"{run_id}.json"
-        with open(export_path, 'w') as f:
-            json.dump(report, f, indent=2)
-        return FileResponse(export_path, filename=f"scoobybench_report_{run_id}.json")
+    safe_name = validators.sanitize_filename(run_id)
 
-    raise HTTPException(status_code=400, detail=f"Unsupported format: {format}")
+    if format == "json":
+        export_path = config.reports_dir / f"{safe_name}.json"
+        with open(export_path, 'w', encoding='utf-8') as f:
+            json.dump(report, f, indent=2)
+        return FileResponse(
+            export_path,
+            filename=f"scoobybench_report_{safe_name}.json",
+            media_type="application/json"
+        )
+
+    if format == "html":
+        html_content = report_generator.generate_html(report)
+        export_path = config.reports_dir / f"{safe_name}.html"
+        export_path.write_text(html_content, encoding='utf-8')
+        return HTMLResponse(content=html_content)
+
+    # csv
+    csv_content = report_generator.generate_csv([report])
+    return PlainTextResponse(
+        content=csv_content,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f'attachment; filename="scoobybench_report_{safe_name}.csv"'
+        }
+    )
+
+@router.get("/api/benchmark/export")
+async def export_all_reports(limit: int = Query(default=200, ge=1, le=1000)):
+    """Export the entire benchmark history as a single CSV"""
+    rows = db.list_benchmarks(limit=limit, offset=0)
+    reports = [row["summary"] for row in rows if row.get("summary")]
+    csv_content = report_generator.generate_csv(reports)
+    return PlainTextResponse(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="scoobybench_history.csv"'}
+    )
+
+@router.get("/api/benchmark/compare")
+async def compare_runs(run_a: str = Query(...), run_b: str = Query(...)):
+    """Compare two saved benchmark runs (A = reference, B = candidate)"""
+    for rid in (run_a, run_b):
+        if not validators.is_valid_run_id(rid):
+            raise HTTPException(status_code=400, detail=f"Invalid run_id: {rid}")
+    try:
+        return run_comparator.compare_runs(run_a, run_b)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e.args[0])) from e
+
+@router.get("/api/benchmark/history/summary")
+async def benchmark_history_summary(limit: int = Query(default=200, ge=1, le=1000)):
+    """Aggregated stats over saved benchmark history, grouped by model"""
+    return run_comparator.history_summary(limit=limit)
 
 # ============ Telemetry ============
 
@@ -163,10 +231,14 @@ async def get_config():
 
 @router.post("/api/config")
 async def update_config(updates: dict):
-    """Update application configuration"""
-    for key, value in updates.items():
-        if hasattr(config, key):
-            setattr(config, key, value)
+    """Update application configuration (whitelisted keys only)"""
+    try:
+        accepted = validators.validate_config_updates(updates)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    for key, value in accepted.items():
+        setattr(config, key, value)
     config.save()
     return config.to_dict()
 
@@ -183,7 +255,6 @@ async def health_check():
 
 
 # ============ OLLAMA INTEGRATION ============
-from app.services.ollama_benchmark import ollama_benchmark
 
 @router.get("/api/ollama/status")
 async def ollama_status():
@@ -224,8 +295,9 @@ class OllamaBenchmarkRequest(BaseModel):
     max_tokens: int = 256
     repeats: int = 3
 
+# Sync `def` on purpose: generation blocks for the duration of the run.
 @router.post("/api/ollama/benchmark")
-async def run_ollama_benchmark(request: OllamaBenchmarkRequest):
+def run_ollama_benchmark(request: OllamaBenchmarkRequest):
     """Run benchmark on an Ollama model"""
     try:
         report = ollama_benchmark.benchmark_model(
@@ -237,10 +309,11 @@ async def run_ollama_benchmark(request: OllamaBenchmarkRequest):
         return report
     except Exception as e:
         logger.error(f"Ollama benchmark failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
+# Sync `def` on purpose: pulling a model can block for minutes.
 @router.post("/api/ollama/pull/{model_name}")
-async def pull_ollama_model(model_name: str):
+def pull_ollama_model(model_name: str):
     """Pull a model from Ollama registry"""
     success = ollama_benchmark.pull_model(model_name)
     return {"success": success, "model": model_name}

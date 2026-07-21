@@ -6,7 +6,6 @@ Creates a release on GitHub with the built installer
 import os
 import sys
 import json
-import subprocess
 from pathlib import Path
 import requests
 
@@ -114,9 +113,8 @@ def main():
         else:
             print(f"⚠️ Asset not found: {asset}")
 
-    print(f"
-🎉 Release v{version} created!")
-    print(f"🔗 Check GitHub releases page")
+    print(f"\n🎉 Release v{version} created!")
+    print("🔗 Check GitHub releases page")
 
 if __name__ == "__main__":
     main()

@@ -83,9 +83,6 @@ class BenchmarkReport(BaseModel):
     environment_snapshot: Dict[str, Any] = Field(default_factory=dict)
     notes: str = ""
 
-    class Config:
-        json_encoders = {datetime: lambda v: v.isoformat()}
-
 class TelemetrySample(BaseModel):
     timestamp: datetime
     cpu_percent: float

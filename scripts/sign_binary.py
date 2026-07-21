@@ -3,7 +3,6 @@
 Code signing script for Windows executables
 Requires: Windows SDK, valid code signing certificate
 """
-import os
 import sys
 import subprocess
 from pathlib import Path

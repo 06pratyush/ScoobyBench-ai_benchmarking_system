@@ -3,7 +3,7 @@ import psutil
 import time
 import threading
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Callable, List, Dict, Any
 from collections import deque
 
@@ -59,7 +59,7 @@ class TelemetryAgent:
             return
 
         self._running = True
-        self._start_time = datetime.utcnow()
+        self._start_time = datetime.now(timezone.utc)
         self._thread = threading.Thread(target=self._collect_loop, daemon=True)
         self._thread.start()
         logger.info("Telemetry agent started")
@@ -134,7 +134,7 @@ class TelemetryAgent:
         try:
             temps = psutil.sensors_temperatures()
             if temps:
-                for name, entries in temps.items():
+                for entries in temps.values():
                     if entries:
                         temperature = entries[0].current
                         break
@@ -152,7 +152,7 @@ class TelemetryAgent:
             pass
 
         return TelemetrySample(
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             cpu_percent=cpu_percent,
             memory_percent=memory.percent,
             memory_used_mb=memory.used / (1024**2),
@@ -174,7 +174,7 @@ class TelemetryAgent:
         """Get current monitoring status"""
         uptime = 0.0
         if self._start_time:
-            uptime = (datetime.utcnow() - self._start_time).total_seconds()
+            uptime = (datetime.now(timezone.utc) - self._start_time).total_seconds()
 
         last = self._samples[-1] if self._samples else None
 

@@ -1,5 +1,4 @@
 """Model management and recommendation engine"""
-import json
 import logging
 from pathlib import Path
 from typing import List, Dict, Optional, Any
@@ -218,7 +217,7 @@ class ModelManager:
         """Get installation path for model"""
         return config.models_dir / model_id
 
-    def add_custom_model(self, model_id: str, name: str, onnx_path: str, 
+    def add_custom_model(self, model_id: str, name: str, onnx_path: str,
                         params_million: int, precision: str = "fp16") -> bool:
         """Add a custom local model"""
         try:
