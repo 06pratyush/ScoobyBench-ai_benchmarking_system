@@ -138,8 +138,75 @@ GET /api/benchmark/report/{run_id}
 
 ### Export Report
 ```
-GET /api/benchmark/export/{run_id}?format=json
+GET /api/benchmark/export/{run_id}?format=json|html|csv
 ```
+- `json` — full structured report (download)
+- `html` — self-contained styled scorecard page
+- `csv` — one-row summary suitable for spreadsheets
+
+### Export Full History (CSV)
+```
+GET /api/benchmark/export?limit=200
+```
+One CSV row per saved run.
+
+### Compare Two Runs
+```
+GET /api/benchmark/compare?run_a={run_id}&run_b={run_id}
+```
+
+**Response:**
+```json
+{
+  "run_a": { "run_id": "...", "tokens_per_sec": 40.1, "grade": "B", "p50_ms": 12.0 },
+  "run_b": { "run_id": "...", "tokens_per_sec": 45.2, "grade": "A", "p50_ms": 10.5 },
+  "delta": {
+    "tokens_per_sec_pct": 12.7,
+    "p50_latency_pct": -12.5,
+    "p99_latency_pct": -8.1,
+    "peak_ram_pct": 1.2
+  },
+  "same_model": true,
+  "same_device": true,
+  "verdict": "improvement",
+  "notes": ["Run B is +12.7% faster than run A."]
+}
+```
+`verdict` is one of `improvement`, `regression`, `comparable` (within ±5%),
+or `inconclusive`.
+
+### Benchmark History Summary
+```
+GET /api/benchmark/history/summary?limit=200
+```
+
+**Response:**
+```json
+{
+  "total_runs": 12,
+  "models_benchmarked": 3,
+  "models": [
+    {
+      "model": "phi-2",
+      "runs": 6,
+      "best_tokens_per_sec": 48.2,
+      "latest_tokens_per_sec": 45.1,
+      "mean_tokens_per_sec": 44.0,
+      "stdev_tokens_per_sec": 2.1,
+      "latest_vs_best_pct": -6.4,
+      "grades": {"A": 4, "B": 2}
+    }
+  ]
+}
+```
+
+### System Runtime Summary
+```
+GET /api/system/summary
+```
+Fast snapshot (CPU %, RAM, disk, uptime, backend process usage). Unlike
+`/api/system/profile`, this never runs WMI queries, so it is safe to poll
+every few seconds.
 
 ### Start Telemetry
 ```

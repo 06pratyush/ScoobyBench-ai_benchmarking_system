@@ -1,0 +1,108 @@
+{
+  "folders": [
+    { "name": "🐕 ScoobyBench (root)", "path": "." },
+    { "name": "⚙ Backend (FastAPI)", "path": "backend" },
+    { "name": "🖥 Frontend (Electron)", "path": "frontend" }
+  ],
+  "settings": {
+    "python.defaultInterpreterPath": "${workspaceFolder:⚙ Backend (FastAPI)}/venv311/Scripts/python.exe",
+    "python.testing.pytestEnabled": true,
+    "python.testing.pytestArgs": ["tests"],
+    "files.exclude": {
+      "**/__pycache__": true,
+      "**/venv": true,
+      "**/venv311": true,
+      "**/node_modules": true,
+      "**/dist": true
+    },
+    "search.exclude": {
+      "**/venv311": true,
+      "**/node_modules": true,
+      "**/package-lock.json": true
+    },
+    "[python]": {
+      "editor.defaultFormatter": "charliermarsh.ruff"
+    }
+  },
+  "extensions": {
+    "recommendations": [
+      "ms-python.python",
+      "charliermarsh.ruff",
+      "dbaeumer.vscode-eslint",
+      "esbenp.prettier-vscode",
+      "github.vscode-github-actions"
+    ]
+  },
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "Backend: run dev server",
+        "type": "shell",
+        "command": "${workspaceFolder:⚙ Backend (FastAPI)}/venv311/Scripts/python.exe",
+        "args": ["run.py"],
+        "options": { "cwd": "${workspaceFolder:⚙ Backend (FastAPI)}" },
+        "isBackground": true,
+        "problemMatcher": []
+      },
+      {
+        "label": "Backend: run tests",
+        "type": "shell",
+        "command": "${workspaceFolder:⚙ Backend (FastAPI)}/venv311/Scripts/python.exe",
+        "args": ["-m", "pytest", "tests", "-v"],
+        "options": { "cwd": "${workspaceFolder:⚙ Backend (FastAPI)}" },
+        "group": { "kind": "test", "isDefault": true },
+        "problemMatcher": []
+      },
+      {
+        "label": "Backend: lint (ruff)",
+        "type": "shell",
+        "command": "${workspaceFolder:⚙ Backend (FastAPI)}/venv311/Scripts/python.exe",
+        "args": ["-m", "ruff", "check", "app", "tests", "../scripts"],
+        "options": { "cwd": "${workspaceFolder:⚙ Backend (FastAPI)}" },
+        "problemMatcher": []
+      },
+      {
+        "label": "Frontend: build (webpack)",
+        "type": "shell",
+        "command": "npm",
+        "args": ["run", "build"],
+        "options": { "cwd": "${workspaceFolder:🖥 Frontend (Electron)}" },
+        "group": { "kind": "build", "isDefault": true },
+        "problemMatcher": []
+      },
+      {
+        "label": "Frontend: electron dev",
+        "type": "shell",
+        "command": "npm",
+        "args": ["run", "electron:dev"],
+        "options": { "cwd": "${workspaceFolder:🖥 Frontend (Electron)}" },
+        "isBackground": true,
+        "problemMatcher": []
+      }
+    ]
+  },
+  "launch": {
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Backend: FastAPI (uvicorn)",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "${workspaceFolder:⚙ Backend (FastAPI)}/run.py",
+        "cwd": "${workspaceFolder:⚙ Backend (FastAPI)}",
+        "console": "integratedTerminal",
+        "justMyCode": false
+      },
+      {
+        "name": "Backend: pytest",
+        "type": "debugpy",
+        "request": "launch",
+        "module": "pytest",
+        "args": ["tests", "-v"],
+        "cwd": "${workspaceFolder:⚙ Backend (FastAPI)}",
+        "console": "integratedTerminal"
+      }
+    ]
+  }
+}

@@ -11,8 +11,9 @@
 
 **Unmask your machine's true AI performance with ONNX and Ollama benchmarks.**
 
-[![Release](https://img.shields.io/github/v/release/yourusername/scoobybench?style=for-the-badge&color=F4A300&label=Latest+Release)](../../releases/latest)
-[![License](https://img.shields.io/github/license/yourusername/scoobybench?style=for-the-badge&color=4A90D9)](LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/06pratyush/ScoobyBench-ai_benchmarking_system/ci.yml?style=for-the-badge&label=CI)](../../actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/06pratyush/ScoobyBench-ai_benchmarking_system?style=for-the-badge&color=F4A300&label=Latest+Release)](../../releases/latest)
+[![License](https://img.shields.io/github/license/06pratyush/ScoobyBench-ai_benchmarking_system?style=for-the-badge&color=4A90D9)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D4?style=for-the-badge&logo=windows)](../../releases/latest)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![Node](https://img.shields.io/badge/Node.js-20%2B-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org)
@@ -235,8 +236,13 @@ The backend exposes a local REST API on `http://127.0.0.1:8472`. This is used in
 |----------|--------|-------------|
 | `/api/health` | `GET` | Backend health check |
 | `/api/system/profile` | `GET` | Full hardware profile (CPU, GPU, RAM, drivers) |
+| `/api/system/summary` | `GET` | Fast runtime snapshot (CPU/RAM/disk/process, poll-friendly) |
 | `/api/benchmark/run` | `POST` | Execute a benchmark run |
 | `/api/benchmark/reports` | `GET` | List all saved reports |
+| `/api/benchmark/compare?run_a=&run_b=` | `GET` | Compare two runs: deltas, verdict (improvement / regression) |
+| `/api/benchmark/history/summary` | `GET` | Aggregated per-model stats across saved history |
+| `/api/benchmark/export/{run_id}?format=json\|html\|csv` | `GET` | Export a report as JSON, styled HTML, or CSV |
+| `/api/benchmark/export` | `GET` | Export the entire history as one CSV |
 | `/api/telemetry/start` | `POST` | Begin telemetry sampling |
 | `/api/telemetry/samples` | `GET` | Retrieve telemetry history |
 | `/api/models` | `GET` | List available models |
@@ -350,7 +356,23 @@ cd frontend && npm run electron:dev
 # Opens the Electron window connected to the local backend
 ```
 
-### Step 5 — Build Production Release
+### Step 5 — Run Tests & Lint
+
+```powershell
+cd backend
+pip install -r requirements-dev.txt
+pytest tests -v          # full API + service test suite
+ruff check app tests ..\scripts
+```
+
+The same checks run in CI (`.github/workflows/ci.yml`) on every push and pull
+request, across Ubuntu + Windows and Python 3.11 + 3.12, plus a webpack build
+of the frontend.
+
+> **Tip:** open `ScoobyBench.code-workspace` in VS Code for pre-configured
+> folders, tasks (run server, tests, lint, build), and debug launch configs.
+
+### Step 6 — Build Production Release
 
 ```powershell
 cd scripts
