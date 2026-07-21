@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiGet, apiPost, apiUrl } from '../utils/api';
 
 function BenchmarkRunner() {
   const [models, setModels] = useState([]);
@@ -19,10 +20,7 @@ function BenchmarkRunner() {
 
   const fetchModels = async () => {
     try {
-      const api = window.electronAPI || {
-        apiGet: (e) => fetch(`http://127.0.0.1:8472${e}`).then(r => r.json())
-      };
-      const data = await api.apiGet('/api/models');
+      const data = await apiGet('/api/models');
       setModels(data);
       if (data.length > 0) setSelectedModel(data[0].id);
     } catch (e) {
@@ -44,14 +42,6 @@ function BenchmarkRunner() {
     setError(null);
 
     try {
-      const api = window.electronAPI || {
-        apiPost: (e, d) => fetch(`http://127.0.0.1:8472${e}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d)
-        }).then(r => r.json())
-      };
-
       const modelConfig = {
         name: selectedModel,
         onnx_path: customModelPath || null,
@@ -66,12 +56,12 @@ function BenchmarkRunner() {
       // Poll for progress
       const progressInterval = setInterval(async () => {
         try {
-          const prog = await api.apiGet(`/api/benchmark/progress/${selectedModel}`);
+          const prog = await apiGet(`/api/benchmark/progress/${selectedModel}`);
           setProgress(prog);
         } catch (e) {}
       }, 500);
 
-      const response = await api.apiPost('/api/benchmark/run', {
+      const response = await apiPost('/api/benchmark/run', {
         model: modelConfig
       });
 
@@ -93,10 +83,7 @@ function BenchmarkRunner() {
 
   const abortBenchmark = async () => {
     try {
-      const api = window.electronAPI || {
-        apiPost: (e, d) => fetch(`http://127.0.0.1:8472${e}`, { method: 'POST' }).then(r => r.json())
-      };
-      await api.apiPost('/api/benchmark/abort');
+      await apiPost('/api/benchmark/abort');
     } catch (e) {}
     setIsRunning(false);
   };
@@ -104,18 +91,14 @@ function BenchmarkRunner() {
   const exportReport = async () => {
     if (!result) return;
     try {
-      const api = window.electronAPI || {
-        apiGet: (e) => fetch(`http://127.0.0.1:8472${e}`).then(r => r.json())
-      };
-
       if (window.electronAPI) {
         const savePath = await window.electronAPI.saveFile(`scoobybench_report_${result.run_id}.json`);
         if (savePath) {
-          const report = await api.apiGet(`/api/benchmark/report/${result.run_id}`);
+          const report = await apiGet(`/api/benchmark/report/${result.run_id}`);
           await window.electronAPI.writeTextFile(savePath, JSON.stringify(report, null, 2));
         }
       } else {
-        window.open(`http://127.0.0.1:8472/api/benchmark/export/${result.run_id}?format=json`);
+        window.open(apiUrl(`/api/benchmark/export/${result.run_id}?format=json`));
       }
     } catch (e) {
       console.error('Export failed:', e);

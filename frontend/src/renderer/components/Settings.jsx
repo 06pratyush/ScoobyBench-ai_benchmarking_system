@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiGet, apiPost } from '../utils/api';
 
 function Settings() {
   const [config, setConfig] = useState({});
@@ -10,10 +11,7 @@ function Settings() {
 
   const fetchConfig = async () => {
     try {
-      const api = window.electronAPI || {
-        apiGet: (e) => fetch(`http://127.0.0.1:8472${e}`).then(r => r.json())
-      };
-      const data = await api.apiGet('/api/config');
+      const data = await apiGet('/api/config');
       setConfig(data);
     } catch (e) {
       console.error('Failed to fetch config:', e);
@@ -22,14 +20,7 @@ function Settings() {
 
   const saveConfig = async () => {
     try {
-      const api = window.electronAPI || {
-        apiPost: (e, d) => fetch(`http://127.0.0.1:8472${e}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d)
-        }).then(r => r.json())
-      };
-      await api.apiPost('/api/config', config);
+      await apiPost('/api/config', config);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (e) {

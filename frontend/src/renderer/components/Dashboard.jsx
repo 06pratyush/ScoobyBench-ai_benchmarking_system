@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { apiGet } from '../utils/api';
 
 function Dashboard() {
   const [systemProfile, setSystemProfile] = useState(null);
@@ -16,16 +17,11 @@ function Dashboard() {
 
   const fetchData = async () => {
     try {
-      // Use Electron API if available, otherwise fetch directly
-      const api = window.electronAPI || {
-        apiGet: (endpoint) => fetch(`http://127.0.0.1:8472${endpoint}`).then(r => r.json())
-      };
-
       const [profile, reports, status, recs] = await Promise.all([
-        api.apiGet('/api/system/profile'),
-        api.apiGet('/api/benchmark/reports?limit=5'),
-        api.apiGet('/api/telemetry/status'),
-        api.apiGet('/api/models/recommendations')
+        apiGet('/api/system/profile'),
+        apiGet('/api/benchmark/reports?limit=5'),
+        apiGet('/api/telemetry/status'),
+        apiGet('/api/models/recommendations')
       ]);
 
       setSystemProfile(profile);

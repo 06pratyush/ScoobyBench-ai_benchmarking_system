@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { apiGet, apiUrl } from '../utils/api';
 
 function ReportViewer() {
   const [reports, setReports] = useState([]);
@@ -16,10 +17,7 @@ function ReportViewer() {
 
   const fetchReports = async () => {
     try {
-      const api = window.electronAPI || {
-        apiGet: (e) => fetch(`http://127.0.0.1:8472${e}`).then(r => r.json())
-      };
-      const data = await api.apiGet('/api/benchmark/reports?limit=50');
+      const data = await apiGet('/api/benchmark/reports?limit=50');
       setReports(data);
     } catch (e) {
       console.error('Failed to fetch reports:', e);
@@ -28,30 +26,23 @@ function ReportViewer() {
 
   const fetchReport = async (runId) => {
     try {
-      const api = window.electronAPI || {
-        apiGet: (e) => fetch(`http://127.0.0.1:8472${e}`).then(r => r.json())
-      };
-      const data = await api.apiGet(`/api/benchmark/report/${runId}`);
+      const data = await apiGet(`/api/benchmark/report/${runId}`);
       setSelectedReport(data);
     } catch (e) {
       console.error('Failed to fetch report:', e);
     }
   };
 
-  const exportReport = async (runId) => {
+  const exportReport = async (runId, format = 'json') => {
     try {
-      const api = window.electronAPI || {
-        apiGet: (e) => fetch(`http://127.0.0.1:8472${e}`).then(r => r.json())
-      };
-
-      if (window.electronAPI) {
+      if (window.electronAPI && format === 'json') {
         const savePath = await window.electronAPI.saveFile(`scoobybench_report_${runId}.json`);
         if (savePath) {
-          const report = await api.apiGet(`/api/benchmark/report/${runId}`);
+          const report = await apiGet(`/api/benchmark/report/${runId}`);
           await window.electronAPI.writeTextFile(savePath, JSON.stringify(report, null, 2));
         }
       } else {
-        window.open(`http://127.0.0.1:8472/api/benchmark/export/${runId}?format=json`);
+        window.open(apiUrl(`/api/benchmark/export/${runId}?format=${format}`));
       }
     } catch (e) {
       console.error('Export failed:', e);

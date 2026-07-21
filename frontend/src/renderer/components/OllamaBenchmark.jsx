@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiGet, apiPost } from '../utils/api';
 
 function OllamaBenchmark() {
   const [ollamaStatus, setOllamaStatus] = useState(null);
@@ -21,14 +22,11 @@ function OllamaBenchmark() {
 
   const checkStatus = async () => {
     try {
-      const api = window.electronAPI || {
-        apiGet: (e) => fetch(`http://127.0.0.1:8472${e}`).then(r => r.json())
-      };
-      const status = await api.apiGet('/api/ollama/status');
+      const status = await apiGet('/api/ollama/status');
       setOllamaStatus(status);
 
       if (status.available) {
-        const modelsData = await api.apiGet('/api/ollama/models');
+        const modelsData = await apiGet('/api/ollama/models');
         if (modelsData.models) {
           setModels(modelsData.models);
           if (modelsData.models.length > 0 && !selectedModel) {
@@ -48,15 +46,7 @@ function OllamaBenchmark() {
     setError(null);
 
     try {
-      const api = window.electronAPI || {
-        apiPost: (e, d) => fetch(`http://127.0.0.1:8472${e}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d)
-        }).then(r => r.json())
-      };
-
-      const response = await api.apiPost('/api/ollama/benchmark', {
+      const response = await apiPost('/api/ollama/benchmark', {
         model_name: selectedModel,
         prompt: prompt,
         max_tokens: parseInt(maxTokens),
@@ -81,10 +71,7 @@ function OllamaBenchmark() {
     setError(null);
 
     try {
-      const api = window.electronAPI || {
-        apiPost: (e) => fetch(`http://127.0.0.1:8472${e}`, { method: 'POST' }).then(r => r.json())
-      };
-      const response = await api.apiPost(`/api/ollama/pull/${pullModelName.trim()}`);
+      const response = await apiPost(`/api/ollama/pull/${pullModelName.trim()}`);
 
       if (response.success) {
         alert(`Model ${pullModelName} pulled successfully!`);

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiGet } from '../utils/api';
 
 function ModelBrowser() {
   const [models, setModels] = useState([]);
@@ -12,12 +13,9 @@ function ModelBrowser() {
 
   const fetchData = async () => {
     try {
-      const api = window.electronAPI || {
-        apiGet: (e) => fetch(`http://127.0.0.1:8472${e}`).then(r => r.json())
-      };
       const [modelsData, recsData] = await Promise.all([
-        api.apiGet('/api/models'),
-        api.apiGet('/api/models/recommendations')
+        apiGet('/api/models'),
+        apiGet('/api/models/recommendations')
       ]);
       setModels(modelsData);
       setRecommendations(recsData);

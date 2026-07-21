@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { apiGet, apiPost } from '../utils/api';
+import { TelemetryClient } from '../utils/websocket';
 
 function SystemMonitor() {
   const [isMonitoring, setIsMonitoring] = useState(false);
@@ -14,16 +16,13 @@ function SystemMonitor() {
     const interval = setInterval(checkStatus, 5000);
     return () => {
       clearInterval(interval);
-      if (wsRef.current) wsRef.current.close();
+      if (wsRef.current) wsRef.current.disconnect();
     };
   }, []);
 
   const checkStatus = async () => {
     try {
-      const api = window.electronAPI || {
-        apiGet: (e) => fetch(`http://127.0.0.1:8472${e}`).then(r => r.json())
-      };
-      const status = await api.apiGet('/api/telemetry/status');
+      const status = await apiGet('/api/telemetry/status');
       setIsMonitoring(status.is_monitoring);
       if (status.is_monitoring && !wsRef.current) {
         connectWebSocket();
@@ -32,47 +31,28 @@ function SystemMonitor() {
   };
 
   const connectWebSocket = () => {
-    const wsUrl = window.electronAPI?.getWsUrl() || 'ws://127.0.0.1:8472/ws/telemetry';
-    const ws = new WebSocket(wsUrl);
-
-    ws.onopen = () => {
-      setWsStatus('connected');
-      ws.send(JSON.stringify({ action: 'get_status' }));
-    };
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === 'telemetry') {
-        setSamples(prev => [...prev.slice(-100), data]);
-      }
-    };
-
-    ws.onclose = () => {
-      setWsStatus('disconnected');
-      wsRef.current = null;
-    };
-
-    ws.onerror = () => {
-      setWsStatus('error');
-    };
-
-    wsRef.current = ws;
+    const client = new TelemetryClient({
+      onSample: (sample) => setSamples(prev => [...prev.slice(-100), sample]),
+      onOpen: () => {
+        setWsStatus('connected');
+        client.requestStatus();
+      },
+      onClose: () => setWsStatus('disconnected')
+    });
+    client.connect();
+    wsRef.current = client;
   };
 
   const toggleMonitoring = async () => {
     try {
-      const api = window.electronAPI || {
-        apiPost: (e) => fetch(`http://127.0.0.1:8472${e}`, { method: 'POST' }).then(r => r.json())
-      };
-
       if (isMonitoring) {
-        await api.apiPost('/api/telemetry/stop');
+        await apiPost('/api/telemetry/stop');
         if (wsRef.current) {
-          wsRef.current.close();
+          wsRef.current.disconnect();
           wsRef.current = null;
         }
       } else {
-        await api.apiPost('/api/telemetry/start');
+        await apiPost('/api/telemetry/start');
         connectWebSocket();
       }
       checkStatus();
@@ -83,10 +63,7 @@ function SystemMonitor() {
 
   const fetchStats = async (hours = 1) => {
     try {
-      const api = window.electronAPI || {
-        apiGet: (e) => fetch(`http://127.0.0.1:8472${e}`).then(r => r.json())
-      };
-      const data = await api.apiGet(`/api/telemetry/stats?hours=${hours}`);
+      const data = await apiGet(`/api/telemetry/stats?hours=${hours}`);
       setStats(data);
     } catch (e) {}
   };
